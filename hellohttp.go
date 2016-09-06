@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-    "log"
+    "log" 
     "database/sql"
 	_ "github.com/lib/pq"
     "encoding/json"
@@ -10,6 +10,10 @@ import (
     "net/http"
   
 )
+
+type Users struct {
+  Users []User `json:"users"`
+}
 
 
 type User struct {
@@ -58,9 +62,14 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 func GetUser(w http.ResponseWriter, r *http.Request) {
 
-  urlParams   := mux.Vars(r)
-  id       := urlParams["id"]
-  ReadUser := User{}
+  log.Println("starting retrieval")
+  start := 0
+  limit := 10
+
+  next := start + limit
+
+  w.Header().Set("Pragma", "no-cache")
+  w.Header().Set("Link", "<http://localhost:8080/api/users?start="+string(next)+"; rel=\"next\"")
 
   db, err := sql.Open("postgres", "user=elliottchavis dbname=gohttp sslmode=disable")
   
@@ -70,24 +79,35 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
     panic(err.Error()) 
   }
 
-   err = db.QueryRow("select * from users where users_id=$1",id).Scan(&ReadUser.ID, &ReadUser.Name, &ReadUser.First, &ReadUser.Last, &ReadUser.Email )
- switch {
-      case err == sql.ErrNoRows:
-              fmt.Fprintf(w,"No such user")
-      case err != nil:
-              log.Fatal(err)
-  fmt.Fprintf(w, "Error")
-      default:
-        output, _ := json.Marshal(ReadUser)
-        fmt.Fprintf(w,string(output))
+  /* this is to select ONE user...
+ err = db.QueryRow("select * from users where users_id=$1",id).Scan(&ReadUser.ID, &ReadUser.Name, &ReadUser.First, &ReadUser.Last, &ReadUser.Email )
+*/
+
+  
+/* this is to select ALL users...    */
+
+  rows, err := db.Query("select * from users LIMIT 10")
+  Response := Users{}
+
+  for rows.Next() {
+
+    user := User{}
+      rows.Scan(&user.ID, &user.Name, &user.First, &user.Last, &user.Email)
+
+    Response.Users = append(Response.Users, user)
   }
+
+  output,_ := json.Marshal(Response)
+  fmt.Fprintln(w,string(output))
+
 }
+
 
  func main() {
 
   gorillaRoute := mux.NewRouter()
-  gorillaRoute.HandleFunc("/api/user/create", CreateUser).Methods("GET")
-  gorillaRoute.HandleFunc("/api/user/read/{id:[0-9]+}", GetUser).Methods("GET")  
+  gorillaRoute.HandleFunc("/api/users", CreateUser).Methods("POST")
+  gorillaRoute.HandleFunc("/api/users", GetUser).Methods("GET")  
   http.Handle("/", gorillaRoute)
   http.ListenAndServe(":8080", nil)
 }
