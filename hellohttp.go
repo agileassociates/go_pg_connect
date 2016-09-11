@@ -24,6 +24,10 @@ type User struct {
   Last  string "json:last"
 }
 
+type CreateResponse struct {
+    Error string "json:error"
+  }
+
 
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 
@@ -48,13 +52,16 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
     panic(err.Error()) 
   }
 
-
+  Response := CreateResponse{}
   rows, err := db.Query("INSERT INTO users (first_name, last_name, username, email) VALUES ('" + NewUser.First + "', '"+ NewUser.Last + "', '" + NewUser.Name +"', '" + NewUser.Email + "')" )
   
   if err != nil {
-    fmt.Println(err)
+    Response.Error = err.Error()
+    log.Println(err)
   }
   fmt.Println(rows)
+  createOutput,_ := json.Marshal(Response.Error)
+  fmt.Fprintln(w,string(createOutput))
 
 }
 
